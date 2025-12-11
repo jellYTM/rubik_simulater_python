@@ -25,7 +25,7 @@ rotator = Entity()
 action_mode = False
 
 
-def rotate_side(side_name):
+def rotate_side(side_name):  # noqa: C901
     global action_mode
     global cube_data
     if action_mode:
