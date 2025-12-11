@@ -1,5 +1,5 @@
 import numpy as np
-from ursina import *
+from ursina import EditorCamera, Entity, Ursina, Vec3, color, distance, invoke, scene, window
 
 from rubik_3x3x3 import rubik_3x3x3
 
