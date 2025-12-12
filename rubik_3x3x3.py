@@ -30,142 +30,128 @@ class rubik_3x3x3:
             with open(save_path, "rb") as f:
                 self.cube = pickle.load(f)
         else:
-            self.cube = np.array([
-                [0, 0, 0, 1, 1, 1, 0, 0, 0],
-                [0, 0, 0, 1, 1, 1, 0, 0, 0],
-                [0, 0, 0, 1, 1, 1, 0, 0, 0],
-                [2, 2, 2, 3, 3, 3, 4, 4, 4],
-                [2, 2, 2, 3, 3, 3, 4, 4, 4],
-                [2, 2, 2, 3, 3, 3, 4, 4, 4],
-                [0, 0, 0, 5, 5, 5, 6, 6, 6],
-                [0, 0, 0, 5, 5, 5, 6, 6, 6],
-                [0, 0, 0, 5, 5, 5, 6, 6, 6]
-            ], dtype=np.uint8)
+            # 3x3x3 flattened map (9x9 grid)
+            # Layout:
+            #       [U]
+            #    [L][F][R]
+            #       [D][B]
+            self.cube = np.zeros((9, 9), dtype=np.uint8)
+
+            # 1:White(U), 2:Orange(L), 3:Green(F), 4:Red(R), 5:Yellow(D), 6:Blue(B)
+            self.cube[0:3, 3:6] = 1  # Up
+            self.cube[3:6, 0:3] = 2  # Left
+            self.cube[3:6, 3:6] = 3  # Front
+            self.cube[3:6, 6:9] = 4  # Right
+            self.cube[6:9, 3:6] = 5  # Down
+            self.cube[6:9, 6:9] = 6  # Back
+
             self.shuffle()
 
-    def shuffle(self):  # noqa: C901
-        shuffle_num = 50  # シャッフルする回数（20~50回がいいらしい）
-        manipulate_num = 12  # 操作の種類の数
+    def shuffle(self):
+        shuffle_num = 50
+        manipulate_num = 12
         for i in range(shuffle_num):
             rand = int(random.random() * manipulate_num)
-            if rand == 0:
-                self.col_r_up()
-            elif rand == 1:
-                self.col_r_down()
-            elif rand == 2:
-                self.col_l_up()
-            elif rand == 3:
-                self.col_l_down()
-            elif rand == 4:
-                self.row_top_right()
-            elif rand == 5:
-                self.row_top_left()
-            elif rand == 6:
-                self.row_btm_right()
-            elif rand == 7:
-                self.row_btm_left()
-            elif rand == 8:
-                self.layer2_cw()
-            elif rand == 9:
-                self.layer2_ccw()
-            elif rand == 10:
-                self.layer3_cw()
-            elif rand == 11:
-                self.layer3_ccw()
+            moves = [self.R, self.Ri, self.Li, self.L, self.Ui, self.U,
+                     self.D, self.Di, self.F, self.Fi, self.Bi, self.B]
+            moves[rand]()
 
-    def col_r_up(self):
-        y_indices = np.array([3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2])
-        x_indices = np.array([5, 5, 5, 5, 5, 5, 8, 8, 8, 5, 5, 5])
-        y_prime_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6])
-        x_prime_indices = np.array([5, 5, 5, 5, 5, 5, 5, 5, 5, 8, 8, 8])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    # --- Rotation Logic (Hardcoded for 3x3) ---
+    # R: Right face CW
+    def R(self):
+        y_ind = [3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2]
+        x_ind = [5, 5, 5, 5, 5, 5, 8, 8, 8, 5, 5, 5]
+        y_pri = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6]
+        x_pri = [5, 5, 5, 5, 5, 5, 5, 5, 5, 8, 8, 8]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[3:6, 6:9] = np.rot90(self.cube[3:6, 6:9], k=-1)
 
-    def col_r_down(self):
-        y_indices = np.array([8, 7, 6, 0, 1, 2, 3, 4, 5, 6, 7, 8])
-        x_indices = np.array([8, 8, 8, 5, 5, 5, 5, 5, 5, 5, 5, 5])
-        y_prime_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6])
-        x_prime_indices = np.array([5, 5, 5, 5, 5, 5, 5, 5, 5, 8, 8, 8])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def Ri(self):
+        y_ind = [8, 7, 6, 0, 1, 2, 3, 4, 5, 6, 7, 8]
+        x_ind = [8, 8, 8, 5, 5, 5, 5, 5, 5, 5, 5, 5]
+        y_pri = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6]
+        x_pri = [5, 5, 5, 5, 5, 5, 5, 5, 5, 8, 8, 8]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[3:6, 6:9] = np.rot90(self.cube[3:6, 6:9], k=1)
 
-    def col_l_up(self):
-        y_indices = np.array([3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2])
-        x_indices = np.array([3, 3, 3, 3, 3, 3, 6, 6, 6, 3, 3, 3])
-        y_prime_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6])
-        x_prime_indices = np.array([3, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def Li(self):
+        y_ind = [3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2]
+        x_ind = [3, 3, 3, 3, 3, 3, 6, 6, 6, 3, 3, 3]
+        y_pri = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6]
+        x_pri = [3, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[3:6, 0:3] = np.rot90(self.cube[3:6, 0:3], k=1)
 
-    def col_l_down(self):
-        y_indices = np.array([8, 7, 6, 0, 1, 2, 3, 4, 5, 6, 7, 8])
-        x_indices = np.array([6, 6, 6, 3, 3, 3, 3, 3, 3, 3, 3, 3])
-        y_prime_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6])
-        x_prime_indices = np.array([3, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def L(self):
+        y_ind = [8, 7, 6, 0, 1, 2, 3, 4, 5, 6, 7, 8]
+        x_ind = [6, 6, 6, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+        y_pri = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6]
+        x_pri = [3, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[3:6, 0:3] = np.rot90(self.cube[3:6, 0:3], k=-1)
 
-    def row_top_right(self):
-        y_indices = np.array([6, 6, 6, 3, 3, 3, 3, 3, 3, 3, 3, 3])
-        x_indices = np.array([8, 7, 6, 0, 1, 2, 3, 4, 5, 6, 7, 8])
-        y_prime_indices = np.array([3, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6])
-        x_prime_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def Ui(self):
+        y_ind = [6, 6, 6, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+        x_ind = [8, 7, 6, 0, 1, 2, 3, 4, 5, 6, 7, 8]
+        y_pri = [3, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6]
+        x_pri = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[0:3, 3:6] = np.rot90(self.cube[0:3, 3:6], k=1)
 
-    def row_top_left(self):
-        y_indices = np.array([3, 3, 3, 3, 3, 3, 6, 6, 6, 3, 3, 3])
-        x_indices = np.array([3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2])
-        y_prime_indices = np.array([3, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6])
-        x_prime_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def U(self):
+        y_ind = [3, 3, 3, 3, 3, 3, 6, 6, 6, 3, 3, 3]
+        x_ind = [3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2]
+        y_pri = [3, 3, 3, 3, 3, 3, 3, 3, 3, 6, 6, 6]
+        x_pri = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[0:3, 3:6] = np.rot90(self.cube[0:3, 3:6], k=-1)
 
-    def row_btm_right(self):
-        y_indices = np.array([8, 8, 8, 5, 5, 5, 5, 5, 5, 5, 5, 5])
-        x_indices = np.array([8, 7, 6, 0, 1, 2, 3, 4, 5, 6, 7, 8])
-        y_prime_indices = np.array([5, 5, 5, 5, 5, 5, 5, 5, 5, 8, 8, 8])
-        x_prime_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def D(self):
+        y_ind = [8, 8, 8, 5, 5, 5, 5, 5, 5, 5, 5, 5]
+        x_ind = [8, 7, 6, 0, 1, 2, 3, 4, 5, 6, 7, 8]
+        y_pri = [5, 5, 5, 5, 5, 5, 5, 5, 5, 8, 8, 8]
+        x_pri = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[6:9, 3:6] = np.rot90(self.cube[6:9, 3:6], k=-1)
 
-    def row_btm_left(self):
-        y_indices = np.array([5, 5, 5, 5, 5, 5, 8, 8, 8, 5, 5, 5])
-        x_indices = np.array([3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2])
-        y_prime_indices = np.array([5, 5, 5, 5, 5, 5, 5, 5, 5, 8, 8, 8])
-        x_prime_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def Di(self):
+        y_ind = [5, 5, 5, 5, 5, 5, 8, 8, 8, 5, 5, 5]
+        x_ind = [3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2]
+        y_pri = [5, 5, 5, 5, 5, 5, 5, 5, 5, 8, 8, 8]
+        x_pri = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8, 7, 6]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[6:9, 3:6] = np.rot90(self.cube[6:9, 3:6], k=1)
 
-    # cw: crockwise, ccw counter-clockwise
-    def layer2_cw(self):
-        y_indices = np.array([5, 4, 3, 1, 1, 1, 3, 4, 5, 7, 7, 7])
-        x_indices = np.array([1, 1, 1, 3, 4, 5, 7, 7, 7, 5, 4, 3])
-        y_prime_indices = np.array([1, 1, 1, 3, 4, 5, 7, 7, 7, 5, 4, 3])
-        x_prime_indices = np.array([3, 4, 5, 7, 7, 7, 5, 4, 3, 1, 1, 1])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def F(self):
+        y_ind = [5, 4, 3, 2, 2, 2, 3, 4, 5, 6, 6, 6]
+        x_ind = [2, 2, 2, 3, 4, 5, 6, 6, 6, 5, 4, 3]
+        y_pri = [2, 2, 2, 3, 4, 5, 6, 6, 6, 5, 4, 3]
+        x_pri = [3, 4, 5, 6, 6, 6, 5, 4, 3, 2, 2, 2]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
+        self.cube[3:6, 3:6] = np.rot90(self.cube[3:6, 3:6], k=-1)
 
-    def layer2_ccw(self):
-        y_indices = np.array([3, 4, 5, 7, 7, 7, 5, 4, 3, 1, 1, 1])
-        x_indices = np.array([7, 7, 7, 5, 4, 3, 1, 1, 1, 3, 4, 5])
-        y_prime_indices = np.array([1, 1, 1, 3, 4, 5, 7, 7, 7, 5, 4, 3])
-        x_prime_indices = np.array([3, 4, 5, 7, 7, 7, 5, 4, 3, 1, 1, 1])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def Fi(self):
+        y_ind = [3, 4, 5, 6, 6, 6, 5, 4, 3, 2, 2, 2]
+        x_ind = [6, 6, 6, 5, 4, 3, 2, 2, 2, 3, 4, 5]
+        y_pri = [2, 2, 2, 3, 4, 5, 6, 6, 6, 5, 4, 3]
+        x_pri = [3, 4, 5, 6, 6, 6, 5, 4, 3, 2, 2, 2]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
+        self.cube[3:6, 3:6] = np.rot90(self.cube[3:6, 3:6], k=1)
 
-    def layer3_cw(self):
-        y_indices = np.array([5, 4, 3, 0, 0, 0, 3, 4, 5, 8, 8, 8])
-        x_indices = np.array([0, 0, 0, 3, 4, 5, 8, 8, 8, 5, 4, 3])
-        y_prime_indices = np.array([0, 0, 0, 3, 4, 5, 8, 8, 8, 5, 4, 3])
-        x_prime_indices = np.array([3, 4, 5, 8, 8, 8, 5, 4, 3, 0, 0, 0])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def Bi(self):
+        y_ind = [5, 4, 3, 0, 0, 0, 3, 4, 5, 8, 8, 8]
+        x_ind = [0, 0, 0, 3, 4, 5, 8, 8, 8, 5, 4, 3]
+        y_pri = [0, 0, 0, 3, 4, 5, 8, 8, 8, 5, 4, 3]
+        x_pri = [3, 4, 5, 8, 8, 8, 5, 4, 3, 0, 0, 0]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[6:9, 6:9] = np.rot90(self.cube[6:9, 6:9], k=-1)
 
-    def layer3_ccw(self):
-        y_indices = np.array([3, 4, 5, 8, 8, 8, 5, 4, 3, 0, 0, 0])
-        x_indices = np.array([8, 8, 8, 5, 4, 3, 0, 0, 0, 3, 4, 5])
-        y_prime_indices = np.array([0, 0, 0, 3, 4, 5, 8, 8, 8, 5, 4, 3])
-        x_prime_indices = np.array([3, 4, 5, 8, 8, 8, 5, 4, 3, 0, 0, 0])
-        self.cube[y_prime_indices, x_prime_indices] = self.cube[y_indices, x_indices]
+    def B(self):
+        y_ind = [3, 4, 5, 8, 8, 8, 5, 4, 3, 0, 0, 0]
+        x_ind = [8, 8, 8, 5, 4, 3, 0, 0, 0, 3, 4, 5]
+        y_pri = [0, 0, 0, 3, 4, 5, 8, 8, 8, 5, 4, 3]
+        x_pri = [3, 4, 5, 8, 8, 8, 5, 4, 3, 0, 0, 0]
+        self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[6:9, 6:9] = np.rot90(self.cube[6:9, 6:9], k=1)
 
     def show_rubik_2Dmap(self):
@@ -194,7 +180,7 @@ class rubik_3x3x3:
 
 
 class RubikCubeCamera(Entity):
-    def __init__(self, initial_position=(8, 8, -12), rotate_speed=130, return_speed=10, **kwargs):
+    def __init__(self, initial_position=(8, 8, -12), rotate_speed=130, return_speed=10, save_path="", **kwargs):
         super().__init__(**kwargs)
         self.app = Ursina()
         self.target = Entity(model='cube', scale=3 / np.sqrt(2), color=color.black)
@@ -209,8 +195,8 @@ class RubikCubeCamera(Entity):
             4: color.red, 5: color.yellow, 6: color.azure
         }
 
-        self.cube_data = rubik_3x3x3()
-        self.cube_data.show_rubik_2Dmap()
+        self.rubik = rubik_3x3x3(save_path=save_path)
+        self.rubik.show_rubik_2Dmap()
         self.draw_ursina_cube()
 
         # 1. ピボット（回転の中心軸）をターゲットの位置に作成
@@ -231,7 +217,21 @@ class RubikCubeCamera(Entity):
         self.default_rotation = self.pivot.rotation
 
         # 説明テキスト
-        Text(text='Hold Right Mouse to Orbit\nRelease to Reset', position=(-0.7, 0.45), origin=(-0.5, 0.5))
+        text = (
+            "Controls:\n"
+            "Right Click + Drag : Orbit Camera\n"
+            "Release Click      : Reset Camera\n"
+            "S Key              : Save 2D Map\n\n"
+            "Cube Rotation (Numpad):\n"
+            "-----------------------\n"
+            "R : * |  R' : 3\n"
+            "L : 2   |  L' : /\n"
+            "U : 7   |  U' : -\n"
+            "D : +   |  D' : 4\n"
+            "F : 8   |  F' : 9\n"
+            "B : 5   |  B' : 6"
+        )
+        Text(text=text, position=(-0.7, 0.45), origin=(-0.5, 0.5))
 
     def update(self):
         # 条件：右クリック押下中は動き、離したら初期位置に戻る
@@ -274,9 +274,9 @@ class RubikCubeCamera(Entity):
                 e.world_parent = self.rotator
             elif side_name == '4' and e.world_y < -0.5:
                 e.world_parent = self.rotator
-            elif side_name == '5' and e.world_z == 0:
+            elif side_name == '5' and e.world_z < -0.5:
                 e.world_parent = self.rotator
-            elif side_name == '6' and e.world_z == 0:
+            elif side_name == '6' and e.world_z < -0.5:
                 e.world_parent = self.rotator
             elif side_name == '9' and e.world_z > 0.5:
                 e.world_parent = self.rotator
@@ -292,31 +292,31 @@ class RubikCubeCamera(Entity):
             axis = 'rotation_z'
 
         if side_name == "*":
-            self.cube_data.col_r_up()
+            self.rubik.R()
         elif side_name == "3":
-            self.cube_data.col_r_down()
+            self.rubik.Ri()
         elif side_name == "2":
-            self.cube_data.col_l_down()
+            self.rubik.L()
         elif side_name == "/":
-            self.cube_data.col_l_up()
+            self.rubik.Li()
         elif side_name == "7":
-            self.cube_data.row_top_left()
+            self.rubik.U()
         elif side_name == "-":
-            self.cube_data.row_top_right()
+            self.rubik.Ui()
         elif side_name == "+":
-            self.cube_data.row_btm_right()
+            self.rubik.D()
         elif side_name == "4":
-            self.cube_data.row_btm_right()
+            self.rubik.Di()
         elif side_name == "5":
-            self.cube_data.layer2_ccw()
+            self.rubik.Fi()
         elif side_name == "6":
-            self.cube_data.layer2_cw()
+            self.rubik.F()
         elif side_name == "9":
-            self.cube_data.layer3_cw()
+            self.rubik.Bi()
         elif side_name == "8":
-            self.cube_data.layer3_ccw()
+            self.rubik.B()
 
-        self.cube_data.show_rubik_2Dmap()
+        self.rubik.show_rubik_2Dmap()
 
         # 回転方向の正負（時計回り・反時計回り）
         angle = 90 if side_name in ['*', '/', '7', '9', '4', '6'] else -90
@@ -339,10 +339,10 @@ class RubikCubeCamera(Entity):
         if k in ['*', '2', '/', '3', '7', '-', '+', '4', '8', '9', '6', '5']:
             self.rotate_side(k)
         elif k == "S":
-            self.cube_data.save_rubik_2Dmap()
+            self.rubik.save_rubik_2Dmap()
 
     def draw_ursina_cube(self):
-        cube_state = self.cube_data.cube
+        cube_state = self.rubik.cube
         # 3x3x3 の 27個の「小さな黒いキューブ」を作り、そこにシールを貼る
 
         # 27個のキューブ生成
