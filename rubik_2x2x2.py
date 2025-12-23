@@ -12,6 +12,7 @@ from ursina import (
     Vec3,
     camera,
     color,
+    destroy,
     distance,
     held_keys,
     invoke,
@@ -24,8 +25,8 @@ from ursina import (
 
 
 class rubik_2x2x2:
-    def __init__(self, save_path=""):
-        self.save_path = ""
+    def __init__(self, save_path="", shuffle_num=50, phase=4):
+        self.phase = phase
         if save_path:
             with open(save_path, "rb") as f:
                 self.cube = pickle.load(f)
@@ -45,10 +46,11 @@ class rubik_2x2x2:
             self.cube[4:6, 2:4] = 5  # Down
             self.cube[4:6, 4:6] = 6  # Back
 
+            self.target = self.cube.copy()
+
             self.shuffle()
 
-    def shuffle(self):
-        shuffle_num = 50
+    def shuffle(self, shuffle_num=50):
         manipulate_num = 12
         for i in range(shuffle_num):
             rand = int(random.random() * manipulate_num)
@@ -59,86 +61,77 @@ class rubik_2x2x2:
     # --- Rotation Logic (Hardcoded for 2x2) ---
     # R: Right face CW
     def R(self):
-        y_ind = [3, 4, 5, 5, 4, 0, 1, 2]
-        x_ind = [3, 3, 3, 4, 4, 3, 3, 3]
+        y_ind = [2, 3, 4, 5, 5, 4, 0, 1]
+        x_ind = [3, 3, 3, 3, 5, 5, 3, 3]
         y_pri = [0, 1, 2, 3, 4, 5, 5, 4]
-        x_pri = [3, 3, 3, 3, 3, 3, 4, 4]
+        x_pri = [3, 3, 3, 3, 3, 3, 5, 5]
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[2:4, 4:6] = np.rot90(self.cube[2:4, 4:6], k=-1)
 
     def Ri(self):
         y_ind = [5, 4, 0, 1, 2, 3, 4, 5]
-        x_ind = [4, 4, 3, 3, 3, 3, 3, 3]
+        x_ind = [5, 5, 3, 3, 3, 3, 3, 3]
         y_pri = [0, 1, 2, 3, 4, 5, 5, 4]
-        x_pri = [3, 3, 3, 3, 3, 3, 4, 4]
+        x_pri = [3, 3, 3, 3, 3, 3, 5, 5]
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[2:4, 4:6] = np.rot90(self.cube[2:4, 4:6], k=1)
 
     def Li(self):
-        y_ind = [0, 1, 2, 3, 4, 5, 5, 4]
-        x_ind = [3, 3, 3, 3, 3, 3, 4, 4]
+        y_ind = [2, 3, 4, 5, 5, 4, 0, 1]
+        x_ind = [2, 2, 2, 2, 4, 4, 2, 2]
         y_pri = [0, 1, 2, 3, 4, 5, 5, 4]
-        x_pri = [3, 3, 3, 3, 3, 3, 4, 4]
+        x_pri = [2, 2, 2, 2, 2, 2, 4, 4]
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[2:4, 0:2] = np.rot90(self.cube[2:4, 0:2], k=1)
 
     def L(self):
-        # Swap: F(left) -> D(left) -> B(right inv) -> U(left) -> F
-        y_ind = [5, 4, 4, 5, 2, 3, 0, 1]  # Src: B(inv), D, F, U
-        x_ind = [5, 5, 2, 2, 2, 2, 2, 2]
-
-        y_pri = [0, 1, 2, 3, 4, 5, 5, 4]  # Dst: U, B(inv), D, F
-        x_pri = [3, 3, 3, 3, 3, 3, 4, 4]
+        y_ind = [5, 4, 0, 1, 2, 3, 4, 5]
+        x_ind = [4, 4, 2, 2, 2, 2, 2, 2]
+        y_pri = [0, 1, 2, 3, 4, 5, 5, 4]
+        x_pri = [2, 2, 2, 2, 2, 2, 4, 4]
 
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[2:4, 0:2] = np.rot90(self.cube[2:4, 0:2], k=-1)
 
     def U(self):
-        # F(top) -> L(top) -> B(bottom inv?) -> R(top) -> F
-        # Note: B layout in flat map is [4:6, 4:6]. B top row is 4.
-        y_ind = [2, 2, 2, 2, 5, 5, 2, 2]  # Src: F, R, B(inv), L
+        y_ind = [2, 2, 2, 2, 4, 4, 2, 2]
         x_ind = [2, 3, 4, 5, 5, 4, 0, 1]
-
-        y_pri = [2, 2, 5, 5, 2, 2, 2, 2]  # Dst: L, B(inv), R, F
-        x_pri = [0, 1, 5, 4, 4, 5, 2, 3]
+        y_pri = [2, 2, 2, 2, 2, 2, 4, 4]
+        x_pri = [0, 1, 2, 3, 4, 5, 5, 4]
 
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[0:2, 2:4] = np.rot90(self.cube[0:2, 2:4], k=-1)
 
     def Ui(self):
-        y_ind = [2, 2, 5, 5, 2, 2, 2, 2]
-        x_ind = [0, 1, 5, 4, 4, 5, 2, 3]
-        y_pri = [2, 2, 2, 2, 5, 5, 2, 2]
-        x_pri = [2, 3, 4, 5, 5, 4, 0, 1]
+        y_ind = [4, 4, 2, 2, 2, 2, 2, 2]
+        x_ind = [5, 4, 0, 1, 2, 3, 4, 5]
+        y_pri = [2, 2, 2, 2, 2, 2, 4, 4]
+        x_pri = [0, 1, 2, 3, 4, 5, 5, 4]
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[0:2, 2:4] = np.rot90(self.cube[0:2, 2:4], k=1)
 
     def D(self):
-        # F(bot) -> R(bot) -> B(top inv) -> L(bot) -> F
-        y_ind = [3, 3, 3, 3, 4, 4, 3, 3]  # Src: F, R, B(inv), L
-        x_ind = [2, 3, 4, 5, 5, 4, 0, 1]
-
-        y_pri = [3, 3, 4, 4, 3, 3, 3, 3]  # Dst: R, B(inv), L, F
-        x_pri = [4, 5, 5, 4, 0, 1, 2, 3]
+        y_ind = [5, 5, 3, 3, 3, 3, 3, 3]
+        x_ind = [5, 4, 0, 1, 2, 3, 4, 5]
+        y_pri = [3, 3, 3, 3, 3, 3, 5, 5]
+        x_pri = [0, 1, 2, 3, 4, 5, 5, 4]
 
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[4:6, 2:4] = np.rot90(self.cube[4:6, 2:4], k=-1)
 
     def Di(self):
-        y_ind = [3, 3, 4, 4, 3, 3, 3, 3]
-        x_ind = [4, 5, 5, 4, 0, 1, 2, 3]
-        y_pri = [3, 3, 3, 3, 4, 4, 3, 3]
-        x_pri = [2, 3, 4, 5, 5, 4, 0, 1]
+        y_ind = [3, 3, 3, 3, 5, 5, 3, 3]
+        x_ind = [2, 3, 4, 5, 5, 4, 0, 1]
+        y_pri = [3, 3, 3, 3, 3, 3, 5, 5]
+        x_pri = [0, 1, 2, 3, 4, 5, 5, 4]
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[4:6, 2:4] = np.rot90(self.cube[4:6, 2:4], k=1)
 
     def F(self):
-        # U(bot) -> R(left) -> D(top) -> L(right) -> U
-        y_ind = [1, 1, 2, 3, 4, 4, 3, 2]  # Src: U, R, D, L
-        x_ind = [2, 3, 4, 4, 3, 2, 1, 1]
-
-        y_pri = [2, 3, 4, 4, 3, 2, 1, 1]  # Dst: R, D, L, U
-        x_pri = [4, 4, 3, 2, 1, 1, 2, 3]
+        y_ind = [3, 2, 1, 1, 2, 3, 4, 4]
+        x_ind = [1, 1, 2, 3, 4, 4, 3, 2]
+        y_pri = [1, 1, 2, 3, 4, 4, 3, 2]
+        x_pri = [2, 3, 4, 4, 3, 2, 1, 1]
 
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[2:4, 2:4] = np.rot90(self.cube[2:4, 2:4], k=-1)
@@ -152,24 +145,51 @@ class rubik_2x2x2:
         self.cube[2:4, 2:4] = np.rot90(self.cube[2:4, 2:4], k=1)
 
     def B(self):
-        # U(top) -> L(left) -> D(bot) -> R(right) -> U
-        # Note: B rotation in 2x2 flat map is [4:6, 4:6]
-        y_ind = [0, 0, 3, 2, 5, 5, 2, 3]  # Src: U, L, D, R
-        x_ind = [3, 2, 0, 0, 2, 3, 5, 5]
-
-        y_pri = [3, 2, 5, 5, 2, 3, 0, 0]  # Dst: L, D, R, U
-        x_pri = [0, 0, 2, 3, 5, 5, 3, 2]
-
+        y_ind = [2, 3, 5, 5, 3, 2, 0, 0]
+        x_ind = [5, 5, 3, 2, 0, 0, 2, 3]
+        y_pri = [0, 0, 2, 3, 5, 5, 3, 2]
+        x_pri = [2, 3, 5, 5, 3, 2, 0, 0]
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
-        self.cube[4:6, 4:6] = np.rot90(self.cube[4:6, 4:6], k=1)  # Direction fix
+        self.cube[4:6, 4:6] = np.rot90(self.cube[4:6, 4:6], k=1)
 
     def Bi(self):
-        y_ind = [3, 2, 5, 5, 2, 3, 0, 0]
+        y_ind = [3, 2, 0, 0, 2, 3, 5, 5]
         x_ind = [0, 0, 2, 3, 5, 5, 3, 2]
-        y_pri = [0, 0, 3, 2, 5, 5, 2, 3]
-        x_pri = [3, 2, 0, 0, 2, 3, 5, 5]
+        y_pri = [0, 0, 2, 3, 5, 5, 3, 2]
+        x_pri = [2, 3, 5, 5, 3, 2, 0, 0]
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[4:6, 4:6] = np.rot90(self.cube[4:6, 4:6], k=-1)
+
+    def get_state(self):
+        # 9x9の配列全体をバイト列化して一意なIDとする
+        copy_cube = self.cube.copy()
+        return copy_cube.tobytes()
+
+    def update(self, rotate_index):  # noqa: C901
+        if rotate_index == 0:
+            self.R()
+        elif rotate_index == 1:
+            self.Ri()
+        elif rotate_index == 2:
+            self.Li()
+        elif rotate_index == 3:
+            self.L()
+        elif rotate_index == 4:
+            self.Ui()
+        elif rotate_index == 5:
+            self.U()
+        elif rotate_index == 6:
+            self.D()
+        elif rotate_index == 7:
+            self.Di()
+        elif rotate_index == 8:
+            self.F()
+        elif rotate_index == 9:
+            self.Fi()
+        elif rotate_index == 10:
+            self.Bi()
+        elif rotate_index == 11:
+            self.B()
 
     def show_rubik_2Dmap(self):
         height, width = self.cube.shape
