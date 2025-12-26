@@ -12,6 +12,7 @@ from ursina import (
     Vec3,
     camera,
     color,
+    destroy,
     distance,
     held_keys,
     invoke,
@@ -24,7 +25,7 @@ from ursina import (
 
 
 class rubik_3x3x3:
-    def __init__(self, save_path=""):
+    def __init__(self, save_path="", shuffle_num=50):
         self.save_path = ""
         if save_path:
             with open(save_path, "rb") as f:
@@ -45,10 +46,9 @@ class rubik_3x3x3:
             self.cube[6:9, 3:6] = 5  # Down
             self.cube[6:9, 6:9] = 6  # Back
 
-            self.shuffle()
+            self.shuffle(shuffle_num)
 
-    def shuffle(self):
-        shuffle_num = 50
+    def shuffle(self, shuffle_num=50):
         manipulate_num = 12
         for i in range(shuffle_num):
             rand = int(random.random() * manipulate_num)
@@ -57,7 +57,6 @@ class rubik_3x3x3:
             moves[rand]()
 
     # --- Rotation Logic (Hardcoded for 3x3) ---
-    # R: Right face CW
     def R(self):
         y_ind = [3, 4, 5, 6, 7, 8, 8, 7, 6, 0, 1, 2]
         x_ind = [5, 5, 5, 5, 5, 5, 8, 8, 8, 5, 5, 5]
@@ -154,6 +153,16 @@ class rubik_3x3x3:
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[6:9, 6:9] = np.rot90(self.cube[6:9, 6:9], k=1)
 
+    def get_state(self):
+        # 9x9の配列全体をバイト列化して一意なIDとする
+        copy_cube = self.cube.copy()
+        return copy_cube.tobytes()
+
+    def update(self, rotate_index):
+        moves = [self.R, self.Ri, self.Li, self.L, self.Ui, self.U,
+                    self.D, self.Di, self.F, self.Fi, self.Bi, self.B]
+        moves[rotate_index]()
+
     def show_rubik_2Dmap(self):
         height, width = self.cube.shape
         bgr_image = np.zeros((height, width, 3), dtype=np.uint8)
@@ -173,19 +182,19 @@ class rubik_3x3x3:
         except FileExistsError:
             pass
 
-        with open(f"savefiles/{datetime.now():%Y%m%d}/{datetime.now():%H%M%S}.pkl", "wb") as f:
+        with open(f"savefiles/{datetime.now():%Y%m%d}/cube_{datetime.now():%H%M%S}.pkl", "wb") as f:
             pickle.dump(self.cube, f)
 
         print("Successfully saved 2D Rubik map")
 
 
 class RubikCubeCamera(Entity):
-    def __init__(self, initial_position=(8, 8, -12), rotate_speed=130, return_speed=10, save_path="", **kwargs):
+    def __init__(self, initial_position=(8, 8, -12), rotate_speed=130,
+                 return_speed=10, save_path="", **kwargs):
         super().__init__(**kwargs)
         self.app = Ursina()
         self.target = Entity(model='cube', scale=3 / np.sqrt(2), color=color.black)
         self.rotator = Entity()
-        self.initial_position = initial_position
         self.rotate_speed = rotate_speed
         self.return_speed = return_speed
         self.cubes = []
@@ -195,28 +204,18 @@ class RubikCubeCamera(Entity):
             4: color.red, 5: color.yellow, 6: color.azure
         }
 
-        self.rubik = rubik_3x3x3(save_path=save_path)
+        self.save_path = save_path
+        self.rubik = rubik_3x3x3(save_path=self.save_path)
         self.rubik.show_rubik_2Dmap()
         self.draw_ursina_cube()
 
-        # 1. ピボット（回転の中心軸）をターゲットの位置に作成
-        # これが回転することでカメラが周囲を回る
         self.pivot = Entity(position=self.target.position)
-
-        # 2. メインカメラの設定
-        # カメラをピボットの子要素にする（ピボットが動けばカメラもついていく）
         camera.parent = self.pivot
-        camera.position = self.initial_position
-        camera.rotation_z = -5  # マイナスを指定すると右（時計回り）に傾く
-
-        # 3. 常にターゲット（ピボット）を向くように設定
-        # 親子関係があるため、一度設定すればピボットが回転しても向きは維持される
+        camera.position = initial_position
+        camera.rotation_z = -5
         camera.look_at(self.pivot)
-
-        # 4. 初期回転（リセット時の戻り先）を保存。通常は(0,0,0)
         self.default_rotation = self.pivot.rotation
 
-        # 説明テキスト
         text = (
             "Controls:\n"
             "Right Click + Drag : Orbit Camera\n"
@@ -228,36 +227,27 @@ class RubikCubeCamera(Entity):
             "L : 2   |  L' : /\n"
             "U : 7   |  U' : -\n"
             "D : +   |  D' : 4\n"
-            "F : 8   |  F' : 9\n"
-            "B : 5   |  B' : 6"
+            "F : 6   |  F' : 5\n"
+            "B : 9   |  B' : 8"
         )
         Text(text=text, position=(-0.7, 0.45), origin=(-0.5, 0.5))
 
     def update(self):
-        # 条件：右クリック押下中は動き、離したら初期位置に戻る
         if held_keys['right mouse']:
-            # マウスの移動量(velocity)に応じてピボットを回転させる
-            # rotation_y: 横回転 (マウスX移動)
-            # rotation_x: 縦回転 (マウスY移動) - 操作感を自然にするためマイナスを入れる場合が多い
             self.pivot.rotation_y += mouse.velocity[0] * self.rotate_speed
             self.pivot.rotation_x -= mouse.velocity[1] * self.rotate_speed * 2
         else:
-            # 右クリックされていない時は、初期回転(0,0,0)へ滑らかに戻る
-            # lerp(現在値, 目標値, 速度 * 時間) を使用してスムーズな復帰を実現
             self.pivot.rotation = lerp(self.pivot.rotation, self.default_rotation, time.dt * self.return_speed)
 
     def rotate_side(self, side_name):  # noqa: C901
         if self.action_mode:
-            return  # アニメーション中は操作を受け付けない
+            return
         self.action_mode = True
-
-        # 1. 回転軸をリセット
         self.rotator.rotation = (0, 0, 0)
 
-        # 2. 回転対象のグループ化
-        # 現在の位置に基づいて、回転させたい面のパーツだけをrotatorの子にする
+        # Parenting for 2x2: Pivot is at 0, cubes are at +/- 0.5
+        # Threshold > 0.5 or < -0.5 works correctly
         for e in self.cubes:
-            # ワールド座標での位置を使って判定
             if side_name == '*' and e.world_x > 0.5:
                 e.world_parent = self.rotator
             elif side_name == '3' and e.world_x > 0.5:
@@ -283,7 +273,7 @@ class RubikCubeCamera(Entity):
             elif side_name == '8' and e.world_z > 0.5:
                 e.world_parent = self.rotator
 
-        # 3. アニメーション実行
+        # Animation axis
         if side_name in ['*', '3', '2', '/']:
             axis = 'rotation_x'
         elif side_name in ['7', '-', '+', '4']:
@@ -291,91 +281,73 @@ class RubikCubeCamera(Entity):
         elif side_name in ['5', '9', '6', '8']:
             axis = 'rotation_z'
 
-        if side_name == "*":
-            self.rubik.R()
-        elif side_name == "3":
-            self.rubik.Ri()
-        elif side_name == "2":
-            self.rubik.L()
-        elif side_name == "/":
-            self.rubik.Li()
-        elif side_name == "7":
-            self.rubik.U()
-        elif side_name == "-":
-            self.rubik.Ui()
-        elif side_name == "+":
-            self.rubik.D()
-        elif side_name == "4":
-            self.rubik.Di()
-        elif side_name == "5":
-            self.rubik.Fi()
-        elif side_name == "6":
-            self.rubik.F()
-        elif side_name == "9":
-            self.rubik.Bi()
-        elif side_name == "8":
-            self.rubik.B()
+        # Apply logic
+        mapping = {
+            '*': self.rubik.R, '3': self.rubik.Ri,
+            '2': self.rubik.L, '/': self.rubik.Li,
+            '7': self.rubik.U, '-': self.rubik.Ui,
+            '+': self.rubik.D, '4': self.rubik.Di,
+            '6': self.rubik.F, '5': self.rubik.Fi,
+            '8': self.rubik.B, '9': self.rubik.Bi
+        }
+        if side_name in mapping:
+            mapping[side_name]()
 
         self.rubik.show_rubik_2Dmap()
 
-        # 回転方向の正負（時計回り・反時計回り）
+        # Rotation Angle
         angle = 90 if side_name in ['*', '/', '7', '9', '4', '6'] else -90
-
         self.rotator.animate(axis, angle, duration=0.06)
-
-        # 4. アニメーション終了後の処理
         invoke(self.reset_structure, delay=0.08)
 
     def reset_structure(self):
-        # 親子関係を解除し、回転後の座標を確定させる
         for e in self.cubes:
             e.world_parent = scene
         self.action_mode = False
 
-    # --- キー入力イベント ---
     def input(self, key):
         k = key.upper()
-
         if k in ['*', '2', '/', '3', '7', '-', '+', '4', '8', '9', '6', '5']:
             self.rotate_side(k)
         elif k == "S":
             self.rubik.save_rubik_2Dmap()
+        elif k == "R":
+            self.reset_cube_state()
+        elif k == "V":
+            self.refresh_view()
 
     def draw_ursina_cube(self):
         cube_state = self.rubik.cube
-        # 3x3x3 の 27個の「小さな黒いキューブ」を作り、そこにシールを貼る
 
-        # 27個のキューブ生成
-        for x in range(-1, 2):
-            for y in range(-1, 2):
-                for z in range(-1, 2):
+        # 2x2x2 means 8 cubes. Positions are -1 and 0 and 1
+        positions = [-1, 0, 1]
+
+        for x in positions:
+            for y in positions:
+                for z in positions:
                     c = Entity(model='cube', color=color.black, position=(x, y, z), scale=0.99)
                     self.cubes.append(c)
 
-        # 展開図データからシールを貼り付け
-        # ここでは既存のロジックを使って「位置」を特定し、
-        # その位置に最も近いキューブを見つけて色を塗ります
-
+        # Config adjusted for 2x2 indices
+        # Grid layout: U[0:3, 3:6], L[3:6, 0:3], F[3:6, 3:6], R[3:6, 6:9], D[6:9, 3:6], B[6:9, 6:9]
         faces_config = [
-            # Top (上面): X軸で90度回して上に向ける
+            # Top (U)
             {'slice': (0, 3, 3, 6), 'pos': lambda r, c: Vec3(c - 1, 1, 1 - r), 'rot': (90, 0, 0)},
-            # Left (左面): Y軸で-90度回して左に向ける
+            # Left (L)
             {'slice': (3, 6, 0, 3), 'pos': lambda r, c: Vec3(-1, 1 - r, 1 - c), 'rot': (0, 90, 0)},
-            # Front (正面): 回転なし（そのまま手前を向く）
+            # Front (F)
             {'slice': (3, 6, 3, 6), 'pos': lambda r, c: Vec3(c - 1, 1 - r, -1), 'rot': (0, 0, 0)},
-            # Right (右面): Y軸で90度回して右に向ける
+            # Right (R)
             {'slice': (3, 6, 6, 9), 'pos': lambda r, c: Vec3(1, 1 - r, c - 1), 'rot': (0, -90, 0)},
-            # Bottom (底面): X軸で-90度回して下に向ける
+            # Bottom (D)
             {'slice': (6, 9, 3, 6), 'pos': lambda r, c: Vec3(c - 1, -1, r - 1), 'rot': (-90, 0, 0)},
-            # Back (背面): Y軸で180度回して奥に向ける
+            # Back (B)
             {'slice': (6, 9, 6, 9), 'pos': lambda r, c: Vec3(c - 1, 1 - r, 1), 'rot': (0, 180, 0)},
         ]
 
         for config in faces_config:
             rs, re, cs, ce = config['slice']
             face_data = cube_state[rs:re, cs:ce]
-
-            # 回転角度をVec3に変換
             target_rot = Vec3(*config['rot'])
 
             for r in range(3):
@@ -384,14 +356,10 @@ class RubikCubeCamera(Entity):
                     if color_code == 0:
                         continue
 
-                    # このシールが貼られるべき座標
                     target_pos = config['pos'](r, c)
 
-                    # その座標にある黒キューブを探す
-                    # (浮動小数点の誤差を考慮して距離で判定)
                     for cube_entity in self.cubes:
                         if distance(cube_entity.position, target_pos) < 0.1:
-                            # 黒キューブが見つかったら、その表面に色付きの板を追加
                             sticker = Entity(
                                 parent=cube_entity,
                                 model='quad',
@@ -399,17 +367,51 @@ class RubikCubeCamera(Entity):
                                 scale=0.9,
                                 texture='white_cube'
                             )
-
-                            sticker.world_position = target_pos  # 既に計算済みの正しい位置
+                            sticker.world_position = target_pos
                             sticker.world_rotation = target_rot
-
-                            sticker.world_position += sticker.back * 0.6
-
+                            sticker.world_position += sticker.back * 0.6  # Slightly closer for smaller cubes
                             break
+
+    def refresh_view(self):
+        """現在のself.rubikの状態に基づいて描画をやり直す"""
+
+        # 1. 既存のキューブEntityをシーンから削除
+        for c in self.cubes:
+            destroy(c)
+
+        # 2. リストを空にする
+        self.cubes.clear()
+
+        # 3. 回転アニメーション用の親Entityの状態をリセット
+        self.rotator.rotation = (0, 0, 0)
+        self.action_mode = False
+
+        # 4. 現在の内部データ(self.rubik.cube)に基づいて再描画
+        self.draw_ursina_cube()
+
+    # ---------------------------------------------------------
+    # 【追加】完全に初期状態に戻すメソッド（論理リセット＋描画リセット）
+    # ---------------------------------------------------------
+    def reset_cube_state(self):
+        """内部データと見た目の両方を初期化する"""
+        print("Resetting Cube...")
+
+        # 内部ロジッククラスを再インスタンス化（または初期化メソッドを呼ぶ）
+        # ※引数は __init__ で受け取ったものと同じものを使う必要があります
+        # ここでは初期化時のパラメータを保持していないため、簡易的に再作成します
+        self.rubik = rubik_3x3x3(save_path=self.save_path)
+        self.rubik.show_rubik_2Dmap()
+
+        # オートソルブモードなどをリセット
+        self.auto_solve_mode = False
+        self.rubik.phase = 1
+
+        # 見た目を更新
+        self.refresh_view()
 
     def run_app(self):
         window.color = color.dark_gray
-        window.title = 'Rubik\'s Cube Playable'
+        window.title = '3x3 Rubik\'s Cube'
         self.app.run()
 
 

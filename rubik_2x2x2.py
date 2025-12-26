@@ -26,6 +26,7 @@ from ursina import (
 
 class rubik_2x2x2:
     def __init__(self, save_path="", shuffle_num=50):
+        self.save_path = ""
         if save_path:
             with open(save_path, "rb") as f:
                 self.cube = pickle.load(f)
@@ -44,8 +45,6 @@ class rubik_2x2x2:
             self.cube[2:4, 4:6] = 4  # Right
             self.cube[4:6, 2:4] = 5  # Down
             self.cube[4:6, 4:6] = 6  # Back
-
-            self.target = self.cube.copy()
 
             self.shuffle(shuffle_num)
 
@@ -156,11 +155,11 @@ class rubik_2x2x2:
         self.cube[4:6, 4:6] = np.rot90(self.cube[4:6, 4:6], k=-1)
 
     def get_state(self):
-        # 9x9の配列全体をバイト列化して一意なIDとする
+        # 6x6の配列全体をバイト列化して一意なIDとする
         copy_cube = self.cube.copy()
         return copy_cube.tobytes()
 
-    def update(self, rotate_index):  # noqa: C901
+    def update(self, rotate_index):
         moves = [self.R, self.Ri, self.Li, self.L, self.Ui, self.U,
                     self.D, self.Di, self.F, self.Fi, self.Bi, self.B]
         moves[rotate_index]()
@@ -175,7 +174,7 @@ class rubik_2x2x2:
         bgr_image[self.cube == 5] = np.array((28, 211, 251))  # yellow
         bgr_image[self.cube == 6] = np.array((153, 51, 0))  # blue
 
-        bgr_image = cv2.resize(bgr_image, (250, 250), interpolation=cv2.INTER_AREA)
+        bgr_image = cv2.resize(bgr_image, (500, 500), interpolation=cv2.INTER_AREA)
         cv2.imshow("rubic_2Dmap", bgr_image)
 
     def save_rubik_2Dmap(self):
@@ -186,6 +185,7 @@ class rubik_2x2x2:
 
         with open(f"savefiles/{datetime.now():%Y%m%d}/cube_{datetime.now():%H%M%S}.pkl", "wb") as f:
             pickle.dump(self.cube, f)
+
         print("Successfully saved 2D Rubik map")
 
 
@@ -196,7 +196,6 @@ class RubikCubeCamera(Entity):
         self.app = Ursina()
         self.target = Entity(model='cube', scale=2 / np.sqrt(2), color=color.black)
         self.rotator = Entity()
-        self.initial_position = initial_position
         self.rotate_speed = rotate_speed
         self.return_speed = return_speed
         self.cubes = []
@@ -205,15 +204,15 @@ class RubikCubeCamera(Entity):
             0: color.clear, 1: color.white, 2: color.orange, 3: color.green,
             4: color.red, 5: color.yellow, 6: color.azure
         }
-        self.save_path = save_path
 
+        self.save_path = save_path
         self.rubik = rubik_2x2x2(save_path=self.save_path)
         self.rubik.show_rubik_2Dmap()
         self.draw_ursina_cube()
 
         self.pivot = Entity(position=self.target.position)
         camera.parent = self.pivot
-        camera.position = self.initial_position
+        camera.position = initial_position
         camera.rotation_z = -5
         camera.look_at(self.pivot)
         self.default_rotation = self.pivot.rotation
