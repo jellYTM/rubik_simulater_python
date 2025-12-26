@@ -25,8 +25,7 @@ from ursina import (
 
 
 class rubik_2x2x2:
-    def __init__(self, save_path="", shuffle_num=50, phase=4):
-        self.phase = phase
+    def __init__(self, save_path="", shuffle_num=50):
         if save_path:
             with open(save_path, "rb") as f:
                 self.cube = pickle.load(f)
@@ -48,7 +47,7 @@ class rubik_2x2x2:
 
             self.target = self.cube.copy()
 
-            self.shuffle()
+            self.shuffle(shuffle_num)
 
     def shuffle(self, shuffle_num=50):
         manipulate_num = 12
@@ -59,7 +58,6 @@ class rubik_2x2x2:
             moves[rand]()
 
     # --- Rotation Logic (Hardcoded for 2x2) ---
-    # R: Right face CW
     def R(self):
         y_ind = [2, 3, 4, 5, 5, 4, 0, 1]
         x_ind = [3, 3, 3, 3, 5, 5, 3, 3]
@@ -98,7 +96,6 @@ class rubik_2x2x2:
         x_ind = [2, 3, 4, 5, 5, 4, 0, 1]
         y_pri = [2, 2, 2, 2, 2, 2, 4, 4]
         x_pri = [0, 1, 2, 3, 4, 5, 5, 4]
-
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[0:2, 2:4] = np.rot90(self.cube[0:2, 2:4], k=-1)
 
@@ -115,7 +112,6 @@ class rubik_2x2x2:
         x_ind = [5, 4, 0, 1, 2, 3, 4, 5]
         y_pri = [3, 3, 3, 3, 3, 3, 5, 5]
         x_pri = [0, 1, 2, 3, 4, 5, 5, 4]
-
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[4:6, 2:4] = np.rot90(self.cube[4:6, 2:4], k=-1)
 
@@ -132,7 +128,6 @@ class rubik_2x2x2:
         x_ind = [1, 1, 2, 3, 4, 4, 3, 2]
         y_pri = [1, 1, 2, 3, 4, 4, 3, 2]
         x_pri = [2, 3, 4, 4, 3, 2, 1, 1]
-
         self.cube[y_pri, x_pri] = self.cube[y_ind, x_ind]
         self.cube[2:4, 2:4] = np.rot90(self.cube[2:4, 2:4], k=-1)
 
@@ -166,47 +161,21 @@ class rubik_2x2x2:
         return copy_cube.tobytes()
 
     def update(self, rotate_index):  # noqa: C901
-        if rotate_index == 0:
-            self.R()
-        elif rotate_index == 1:
-            self.Ri()
-        elif rotate_index == 2:
-            self.Li()
-        elif rotate_index == 3:
-            self.L()
-        elif rotate_index == 4:
-            self.Ui()
-        elif rotate_index == 5:
-            self.U()
-        elif rotate_index == 6:
-            self.D()
-        elif rotate_index == 7:
-            self.Di()
-        elif rotate_index == 8:
-            self.F()
-        elif rotate_index == 9:
-            self.Fi()
-        elif rotate_index == 10:
-            self.Bi()
-        elif rotate_index == 11:
-            self.B()
+        moves = [self.R, self.Ri, self.Li, self.L, self.Ui, self.U,
+                    self.D, self.Di, self.F, self.Fi, self.Bi, self.B]
+        moves[rotate_index]()
 
     def show_rubik_2Dmap(self):
         height, width = self.cube.shape
         bgr_image = np.zeros((height, width, 3), dtype=np.uint8)
-        # Colors
-        colors = {
-            1: (255, 255, 255),  # White
-            2: (40, 117, 232),  # Orange
-            3: (0, 128, 0),     # Green
-            4: (28, 0, 198),    # Red
-            5: (28, 211, 251),  # Yellow
-            6: (153, 51, 0)     # Blue
-        }
-        for k, v in colors.items():
-            bgr_image[self.cube == k] = np.array(v)
+        bgr_image[self.cube == 1] = np.array((255, 255, 255))  # white
+        bgr_image[self.cube == 2] = np.array((40, 117, 232))  # orange
+        bgr_image[self.cube == 3] = np.array((0, 128, 0))  # green
+        bgr_image[self.cube == 4] = np.array((28, 0, 198))  # red
+        bgr_image[self.cube == 5] = np.array((28, 211, 251))  # yellow
+        bgr_image[self.cube == 6] = np.array((153, 51, 0))  # blue
 
-        bgr_image = cv2.resize(bgr_image, (400, 400), interpolation=cv2.INTER_NEAREST)
+        bgr_image = cv2.resize(bgr_image, (250, 250), interpolation=cv2.INTER_AREA)
         cv2.imshow("rubic_2Dmap", bgr_image)
 
     def save_rubik_2Dmap(self):
@@ -214,16 +183,17 @@ class rubik_2x2x2:
             os.mkdir(f"savefiles/{datetime.now():%Y%m%d}")
         except FileExistsError:
             pass
-        with open(f"savefiles/{datetime.now():%Y%m%d}/{datetime.now():%H%M%S}.pkl", "wb") as f:
+
+        with open(f"savefiles/{datetime.now():%Y%m%d}/cube_{datetime.now():%H%M%S}.pkl", "wb") as f:
             pickle.dump(self.cube, f)
         print("Successfully saved 2D Rubik map")
 
 
 class RubikCubeCamera(Entity):
-    def __init__(self, initial_position=(6, 6, -10), rotate_speed=130, return_speed=10, save_path="", **kwargs):
+    def __init__(self, initial_position=(6, 6, -10), rotate_speed=130,
+                 return_speed=10, save_path="", **kwargs):
         super().__init__(**kwargs)
         self.app = Ursina()
-        # Scale adjusted for 2x2
         self.target = Entity(model='cube', scale=2 / np.sqrt(2), color=color.black)
         self.rotator = Entity()
         self.initial_position = initial_position
@@ -235,9 +205,10 @@ class RubikCubeCamera(Entity):
             0: color.clear, 1: color.white, 2: color.orange, 3: color.green,
             4: color.red, 5: color.yellow, 6: color.azure
         }
+        self.save_path = save_path
 
-        self.ribik = rubik_2x2x2(save_path=save_path)
-        self.ribik.show_rubik_2Dmap()
+        self.rubik = rubik_2x2x2(save_path=self.save_path)
+        self.rubik.show_rubik_2Dmap()
         self.draw_ursina_cube()
 
         self.pivot = Entity(position=self.target.position)
@@ -247,22 +218,21 @@ class RubikCubeCamera(Entity):
         camera.look_at(self.pivot)
         self.default_rotation = self.pivot.rotation
 
-        # Improved HUD Text
         text = (
-            "2x2 Pocket Cube\n"
-            "----------------\n"
-            "Right Click : Orbit\n"
-            "Release     : Reset\n"
-            "S Key       : Save\n\n"
-            "Controls (Numpad):\n"
-            " R: * | R': 3\n"
-            " L: 2 | L': /\n"
-            " U: 7 | U': -\n"
-            " D: + | D': 4\n"
-            " F: 8 | F': 9\n"
-            " B: 5 | B': 6"
+            "Controls:\n"
+            "Right Click + Drag : Orbit Camera\n"
+            "Release Click      : Reset Camera\n"
+            "S Key              : Save 2D Map\n\n"
+            "Cube Rotation (Numpad):\n"
+            "-----------------------\n"
+            "R : * |  R' : 3\n"
+            "L : 2   |  L' : /\n"
+            "U : 7   |  U' : -\n"
+            "D : +   |  D' : 4\n"
+            "F : 6   |  F' : 5\n"
+            "B : 9   |  B' : 8"
         )
-        Text(text=text, position=(-0.85, 0.45), origin=(-0.5, 0.5), scale=1.0, line_height=1.1)
+        Text(text=text, position=(-0.7, 0.45), origin=(-0.5, 0.5))
 
     def update(self):
         if held_keys['right mouse']:
@@ -296,14 +266,14 @@ class RubikCubeCamera(Entity):
                 e.world_parent = self.rotator
             elif side_name == '4' and e.world_y < 0:
                 e.world_parent = self.rotator
-            elif side_name == '5' and e.world_z > 0:
-                e.world_parent = self.rotator  # B
-            elif side_name == '6' and e.world_z > 0:
-                e.world_parent = self.rotator  # B
-            elif side_name == '9' and e.world_z < 0:
-                e.world_parent = self.rotator  # F (Front is negative Z)
-            elif side_name == '8' and e.world_z < 0:
-                e.world_parent = self.rotator  # F
+            elif side_name == '5' and e.world_z < 0:
+                e.world_parent = self.rotator
+            elif side_name == '6' and e.world_z < 0:
+                e.world_parent = self.rotator
+            elif side_name == '9' and e.world_z > 0:
+                e.world_parent = self.rotator
+            elif side_name == '8' and e.world_z > 0:
+                e.world_parent = self.rotator
 
         # Animation axis
         if side_name in ['*', '3', '2', '/']:
@@ -315,22 +285,22 @@ class RubikCubeCamera(Entity):
 
         # Apply logic
         mapping = {
-            '*': self.ribik.R, '3': self.ribik.Ri,
-            '2': self.ribik.L, '/': self.ribik.Li,
-            '7': self.ribik.U, '-': self.ribik.Ui,
-            '+': self.ribik.D, '4': self.ribik.Di,
-            '8': self.ribik.F, '9': self.ribik.Fi,
-            '5': self.ribik.B, '6': self.ribik.Bi
+            '*': self.rubik.R, '3': self.rubik.Ri,
+            '2': self.rubik.L, '/': self.rubik.Li,
+            '7': self.rubik.U, '-': self.rubik.Ui,
+            '+': self.rubik.D, '4': self.rubik.Di,
+            '6': self.rubik.F, '5': self.rubik.Fi,
+            '8': self.rubik.B, '9': self.rubik.Bi
         }
         if side_name in mapping:
             mapping[side_name]()
 
-        self.ribik.show_rubik_2Dmap()
+        self.rubik.show_rubik_2Dmap()
 
         # Rotation Angle
         angle = 90 if side_name in ['*', '/', '7', '9', '4', '6'] else -90
-        self.rotator.animate(axis, angle, duration=0.1)
-        invoke(self.reset_structure, delay=0.12)
+        self.rotator.animate(axis, angle, duration=0.06)
+        invoke(self.reset_structure, delay=0.08)
 
     def reset_structure(self):
         for e in self.cubes:
@@ -342,10 +312,14 @@ class RubikCubeCamera(Entity):
         if k in ['*', '2', '/', '3', '7', '-', '+', '4', '8', '9', '6', '5']:
             self.rotate_side(k)
         elif k == "S":
-            self.ribik.save_rubik_2Dmap()
+            self.rubik.save_rubik_2Dmap()
+        elif k == "R":
+            self.reset_cube_state()
+        elif k == "V":
+            self.refresh_view()
 
     def draw_ursina_cube(self):
-        cube_state = self.ribik.cube
+        cube_state = self.rubik.cube
 
         # 2x2x2 means 8 cubes. Positions are -0.5 and 0.5
         positions = [-0.5, 0.5]
@@ -358,19 +332,18 @@ class RubikCubeCamera(Entity):
 
         # Config adjusted for 2x2 indices
         # Grid layout: U[0:2, 2:4], L[2:4, 0:2], F[2:4, 2:4], R[2:4, 4:6], D[4:6, 2:4], B[4:6, 4:6]
-        # Pos mapping: r(row 0-1), c(col 0-1) -> World Space
         faces_config = [
-            # Top (U): y=0.5
+            # Top (U)
             {'slice': (0, 2, 2, 4), 'pos': lambda r, c: Vec3(c - 0.5, 0.5, 0.5 - r), 'rot': (90, 0, 0)},
-            # Left (L): x=-0.5
+            # Left (L)
             {'slice': (2, 4, 0, 2), 'pos': lambda r, c: Vec3(-0.5, 0.5 - r, 0.5 - c), 'rot': (0, 90, 0)},
-            # Front (F): z=-0.5
+            # Front (F)
             {'slice': (2, 4, 2, 4), 'pos': lambda r, c: Vec3(c - 0.5, 0.5 - r, -0.5), 'rot': (0, 0, 0)},
-            # Right (R): x=0.5
+            # Right (R)
             {'slice': (2, 4, 4, 6), 'pos': lambda r, c: Vec3(0.5, 0.5 - r, c - 0.5), 'rot': (0, -90, 0)},
-            # Bottom (D): y=-0.5
+            # Bottom (D)
             {'slice': (4, 6, 2, 4), 'pos': lambda r, c: Vec3(c - 0.5, -0.5, r - 0.5), 'rot': (-90, 0, 0)},
-            # Back (B): z=0.5
+            # Back (B)
             {'slice': (4, 6, 4, 6), 'pos': lambda r, c: Vec3(c - 0.5, 0.5 - r, 0.5), 'rot': (0, 180, 0)},
         ]
 
@@ -400,6 +373,43 @@ class RubikCubeCamera(Entity):
                             sticker.world_rotation = target_rot
                             sticker.world_position += sticker.back * 0.6  # Slightly closer for smaller cubes
                             break
+
+    def refresh_view(self):
+        """現在のself.rubikの状態に基づいて描画をやり直す"""
+
+        # 1. 既存のキューブEntityをシーンから削除
+        for c in self.cubes:
+            destroy(c)
+
+        # 2. リストを空にする
+        self.cubes.clear()
+
+        # 3. 回転アニメーション用の親Entityの状態をリセット
+        self.rotator.rotation = (0, 0, 0)
+        self.action_mode = False
+
+        # 4. 現在の内部データ(self.rubik.cube)に基づいて再描画
+        self.draw_ursina_cube()
+
+    # ---------------------------------------------------------
+    # 【追加】完全に初期状態に戻すメソッド（論理リセット＋描画リセット）
+    # ---------------------------------------------------------
+    def reset_cube_state(self):
+        """内部データと見た目の両方を初期化する"""
+        print("Resetting Cube...")
+
+        # 内部ロジッククラスを再インスタンス化（または初期化メソッドを呼ぶ）
+        # ※引数は __init__ で受け取ったものと同じものを使う必要があります
+        # ここでは初期化時のパラメータを保持していないため、簡易的に再作成します
+        self.rubik = rubik_2x2x2(save_path=self.save_path)
+        self.rubik.show_rubik_2Dmap()
+
+        # オートソルブモードなどをリセット
+        self.auto_solve_mode = False
+        self.rubik.phase = 1
+
+        # 見た目を更新
+        self.refresh_view()
 
     def run_app(self):
         window.color = color.dark_gray
